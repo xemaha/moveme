@@ -86,7 +86,7 @@ if st.button('Add Movie'):
 
 # Query movies by tag
 st.header('Query Movies by Tag')
-query_tag = st.selectbox('Select Tag to Query Movies', [''] + get_all_tags())
+query_tag = st.selectbox('Select Tag to Query Movies', [''] + get_all_tags(), format_func=str)
 if st.button('Search'):
     if query_tag:
         movies_with_query_tag = get_movies_by_tag(query_tag)
