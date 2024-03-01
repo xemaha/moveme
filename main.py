@@ -13,16 +13,35 @@ c.execute('''CREATE TABLE IF NOT EXISTS movies (
             )''')
 conn.commit()
 
-# Function to add movie and tags to the database
-def add_movie(movie, tags):
-    c.execute("INSERT INTO movies (movie_name, tags) VALUES (?, ?)", (movie, ','.join(tags)))
-    conn.commit()
+
+# Function to add or update movie and tags in the database
+def add_or_update_movie(movie, tags):
+    # Convert tags to uppercase
+    tags = [tag.upper() for tag in tags]
+
+    # Check if the movie already exists in the database
+    c.execute("SELECT * FROM movies WHERE movie_name=?", (movie,))
+    existing_movie = c.fetchone()
+    if existing_movie:
+        # Movie exists, update its tags
+        existing_tags = existing_movie[2].split(',')
+        updated_tags = list(set(existing_tags + tags))  # Merge and remove duplicates
+        c.execute("UPDATE movies SET tags=? WHERE movie_name=?", (','.join(updated_tags), movie))
+        conn.commit()
+        st.success(f'Tags updated for movie "{movie}": {", ".join(updated_tags)}')
+    else:
+        # Movie does not exist, insert a new record
+        c.execute("INSERT INTO movies (movie_name, tags) VALUES (?, ?)", (movie, ','.join(tags)))
+        conn.commit()
+        st.success(f'Movie "{movie}" added with Tags: {", ".join(tags)}')
+
 
 # Function to get movies by tag from the database
 def get_movies_by_tag(tag):
-    c.execute("SELECT movie_name FROM movies WHERE tags LIKE ?", ('%'+tag.lower()+'%',))
+    c.execute("SELECT movie_name FROM movies WHERE tags LIKE ?", ('%' + tag.upper() + '%',))
     movies_with_tag = [row[0] for row in c.fetchall()]
     return movies_with_tag
+
 
 # Function to get all available tags from the database
 def get_all_tags():
@@ -30,12 +49,13 @@ def get_all_tags():
     all_tags = [tag.strip() for row in c.fetchall() for tag in row[0].split(',')]
     return all_tags
 
+
 # Function to get tags and corresponding movies from the database
 def get_tags_with_movies():
     c.execute("SELECT tags, movie_name FROM movies")
     tags_with_movies = {}
     for row in c.fetchall():
-        tags = row[0].lower().split(',')
+        tags = row[0].split(',')
         movie = row[1]
         for tag in tags:
             if tag.strip() not in tags_with_movies:
@@ -44,10 +64,13 @@ def get_tags_with_movies():
                 tags_with_movies[tag.strip()].append(movie)
     return tags_with_movies
 
+
 # Function to delete a movie from the database
 def delete_movie(movie):
     c.execute("DELETE FROM movies WHERE movie_name=?", (movie,))
     conn.commit()
+    st.success(f'Movie "{movie}" deleted successfully.')
+
 
 # Streamlit app
 st.title('Movie Tagging App')
@@ -58,9 +81,8 @@ movie_name = st.text_input('Enter Movie Name')
 movie_tags = st.text_input('Enter Tags (separated by commas)')
 
 if st.button('Add Movie'):
-    tags_list = [tag.strip().lower() for tag in movie_tags.split(',')]
-    add_movie(movie_name, tags_list)
-    st.success(f'Movie "{movie_name}" added with Tags: {", ".join(tags_list)}')
+    tags_list = [tag.strip() for tag in movie_tags.split(',')]
+    add_or_update_movie(movie_name, tags_list)
 
 # Query movies by tag
 st.header('Query Movies by Tag')
@@ -89,7 +111,6 @@ if st.button('Show All Tags'):
     else:
         st.warning('No tags found yet.')
 
-
 # Display all movies and their tags
 if st.button('Show All Movies'):
     st.header('All Movies and Tags')
@@ -99,12 +120,11 @@ if st.button('Show All Movies'):
         for movie, tags in all_movies:
             st.write(f"## {movie}")
             st.write(f"Tags: {tags}")
-            if st.button(f"Delete {movie}"):
+            delete_button_key = f"delete_{movie.replace(' ', '_')}"
+            if st.button("Delete", key=delete_button_key):
                 delete_movie(movie)
-                st.success(f'Movie "{movie}" deleted successfully.')
     else:
         st.warning('No movies added yet.')
-
 
 # Close the SQLite connection
 conn.close()
